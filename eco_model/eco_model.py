@@ -27,7 +27,10 @@ from qgis.PyQt.QtCore import (QSettings,
                               QTranslator,
                               QCoreApplication,
                               Qt,
+                              QVariant,
                               QUrl,
+                              QDate,
+                              QTime,
                               QDateTime)
                           
 from qgis.PyQt.QtGui import QIcon
@@ -43,7 +46,13 @@ from qgis.PyQt.QtWidgets import (QDialog,
                                  QTextEdit,
                                  QSpinBox,
                                  QDoubleSpinBox,
+                                 QCheckBox,
+                                 QComboBox,
+                                 QDateTimeEdit,
+                                 QDateEdit,
+                                 QTimeEdit,
                                  QLayout,
+                                 QHeaderView,
                                  QVBoxLayout)
 
 from qgis.PyQt.Qt import (QStandardItemModel,
@@ -86,6 +95,8 @@ from .helper import (tr,
 from .eco_model_dockwidget import EcoModelDockWidget
 
 import os.path
+
+PARM_NO_COLUMNS = 10 
 
 class EcoModel:
     """QGIS Plugin Implementation."""
@@ -270,15 +281,18 @@ class EcoModel:
                 sd.pbParameterSave.clicked.connect(self.pbParameterSaveClicked)
                 sd.pbParameterReset.clicked.connect(self.pbParameterResetClicked)
                 sd.pbModelRun.clicked.connect(self.pbModelRunClicked)
-                
-                sd.tvGeneral.setEditTriggers(QAbstractItemView.NoEditTriggers)
-                sd.tvGeneral.setSelectionBehavior(QAbstractItemView.SelectRows)
-                sd.tvGeneral.setSelectionMode(QAbstractItemView.ExtendedSelection)
-                sd.tvGeneral.doubleClicked.connect(self.tvGeneralClicked)
 
+                for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
+                    tv.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                    tv.setSelectionBehavior(QAbstractItemView.SelectRows)
+                    tv.setSelectionMode(QAbstractItemView.SingleSelection)
 
+                sd.tvGeneral.doubleClicked.connect(self.tvGeneralDoubleClicked)
+                sd.tvQueries.doubleClicked.connect(self.tvQueriesDoubleClicked)
+                sd.tvData.doubleClicked.connect(self.tvDataDoubleClicked)
+                sd.tvModels.doubleClicked.connect(self.tvModelsDoubleClicked)
+                sd.tvReports.doubleClicked.connect(self.tvReportsDoubleClicked)
 
-                self.parm = read_config(os.path.join(self.plugin_dir, 'configuration.json'))
                 self.pbDatabaseClicked()
                 self.pbParameterResetClicked()
                 
@@ -302,7 +316,6 @@ class EcoModel:
             metadata = QgsProviderRegistry.instance().providerMetadata(k)
 
             try:
-                logI('Testing connection type: {}'.format(k))
                 conn = metadata.connections()
                 for c,i in conn.items(): sd.cbDatabase.addItem('{}: {}'.format(k, c), [k, c])
 
@@ -316,7 +329,85 @@ class EcoModel:
         
     def pbParameterSaveClicked(self):
 
+        deleteTemplate = 'DELETE FROM {parametertable}'
+        parametertable = 'data.parameters'
         sd = self.dockwidget
+
+        columnNames =  [sd.tvGeneral.model().headerData(i,Qt.Horizontal) for i in range(sd.tvGeneral.model().columnCount())]
+
+#        query = QSqlQuery() # First create query instance.
+#        query.exec(deleteTemplate.format(parametertable))
+#
+#        while query.next():
+#            ldict = {}
+#            rec = query.record()
+#            for i in range(rec.count()): ldict[rec.fieldName(i)] = query.value(i)
+#            pdict[query.value(pkfield)] = ldict
+#        n0 = 0
+#        no += self.insertTreeRows (tableName, insertTemplate, root.child(0,0))
+#        
+# 
+#        if root is not None:
+#        for row in range(root.rowCount()):
+#            row_item = root.child(row, 0)
+#            if row_item.hasChildren():
+#                for childIndex in range(row_item.rowCount()):
+#                    # Take second column from "child"-row
+#                    child = row_item.child(childIndex, 1)
+#                    yield child
+#
+#
+#        # Get the table as a layer
+#
+#        # Iterate 5 trees general, queries, data, models, reports
+#        root = sd.tvGeneral.model().invisibleRootItem()
+#        columnNames= 
+#
+#        return pdict, [rec.fieldName(i) for i in range(rec.count())]
+#
+#or(int i = 0; i < myTableView->model()->columnCount(); i++)
+#{
+#  headers.append(myTableView->model()->headerData(i,Qt.Horizontal).toString());
+#}
+
+    def dbConnection2Db (self, dbType, connectionName):
+
+        metadata = QgsProviderRegistry.instance().providerMetadata(dbType)
+        self.connection = metadata.findConnection(connectionName)
+        uri = QgsDataSourceUri(self.connection.uri())
+
+        cnvDict = {'ogr':'QSPATIALITE','spatialite':'QSPATIALITE','postgres':'QPSQL','mssql':'QODBC'} # , 'oracle':'QOCI', 'sqlite':'QSQLITE'}
+
+        if dbType in cnvDict:
+        
+            dbQtType = cnvDict[dbType]            
+            db = QSqlDatabase.addDatabase(dbQtType);
+
+            if dbQtType ==  'QPSQL':
+
+                db.setHostName(uri.host())
+                db.setDatabaseName(uri.database())
+                db.setPort(int(uri.port()))
+                db.setUserName(uri.username())
+                db.setPassword(uri.password())
+
+            elif dbQtType ==  'QODBC':
+
+                db.setDatabaseName(uri.uri());
+
+            elif dbQtType ==  'QSPATIALITE':
+
+                db.setDatabaseName(uri.uri())    
+
+            db.open()
+
+        else:
+ 
+            logC('dbConnection2Db: Unknown databasetype: {}'.format(dbType))
+            return None, None
+
+        return uri    
+    
 
     def pbParameterResetClicked(self):
 
@@ -324,44 +415,27 @@ class EcoModel:
         
         if sd.cbDatabase.currentIndex() >= 0 and sd.leParameterTable.text() != '':
             setting = sd.cbDatabase.itemData(sd.cbDatabase.currentIndex())
-            metadata = QgsProviderRegistry.instance().providerMetadata(setting[0])
-            logI(setting[0])
-            self.connection = metadata.findConnection(setting[1])
-            uri = QgsDataSourceUri(self.connection.uri())
+
+            self.conuri = self.dbConnection2Db (setting[0], setting[1])
             self.contype = setting[0]
-            self.conuri = uri
             
-            if sd.leParameterTable.text().find('.') >= 0:
-                sandt = sd.leParameterTable.text().split('.',1)
-                uri.setSchema(sandt[0])
-                uri.setTable(sandt[1])
-            else:
-                uri.setTable(sd.leParameterTable.text())
 
             if sd.chbParameter.isChecked():
-                self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", setting[0])
-                QgsProject.instance().addMapLayer(self.parameterLayer)
 
-            cnvDict = {'ogr':'QSPATIALITE','spatialite':'QSPATIALITE','postgres':'QPSQL','mssql':'QODBC'} # , 'oracle':'QOCI', 'sqlite':'QSQLITE'}
+                uri = self.conuri
 
-            db = QSqlDatabase.addDatabase(cnvDict[setting[0]]);
-            db.setHostName(uri.host())
-            db.setDatabaseName(uri.database())
-            db.setPort(int(uri.port()))
-            db.setUserName(uri.username())
-            db.setPassword(uri.password())
-            db.open()
+                if sd.leParameterTable.text().find('.') >= 0:
+                    sandt = sd.leParameterTable.text().split('.',1)
+                    uri.setSchema(sandt[0])
+                    uri.setTable(sandt[1])
+                else:
+                    uri.setTable(sd.leParameterTable.text())
+                    self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
+                    QgsProject.instance().addMapLayer(self.parameterLayer)
+
         
             self.parmDict, hl = self.createParmDict(sd.leParameterSQL.text(),0)        
-
-            
-#            sd.tvGeneral.header().setDefaultSectionSize(80)
-#            sd.tvData.header().setDefaultSectionSize(80)
-#            sd.tvQueries.header().setDefaultSectionSize(80)
-#            sd.tvModels.header().setDefaultSectionSize(80)
-#            sd.tvReports.header().setDefaultSectionSize(80)
- 
-            (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', hl)
+            (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', 'checkable', 'explanation', hl)
         
             sd.tvGeneral.setModel(modG)
             sd.tvData.setModel(modD)
@@ -370,10 +444,12 @@ class EcoModel:
             sd.tvReports.setModel(modR)
 
             for tv in [sd.tvGeneral, sd.tvData, sd.tvQueries, sd.tvModels, sd.tvReports]:
-                tv.header().setDefaultSectionSize(120)
-                for i in [1, 3, 4, 5, 6, 7, 9, 10]: tv.hideColumn(i)
+                for i in range(modG.columnCount()): tv.hideColumn(i)
+                for i in [0,2]: tv.showColumn(i)
+                tv.header().setStretchLastSection(True);
+                tv.header().setSectionResizeMode(QHeaderView.ResizeToContents)
+                tv.setAlternatingRowColors(True)        
 
-        
             sd.tvGeneral.expandAll()
             sd.tvData.expandAll()
             sd.tvQueries.expandAll()
@@ -387,51 +463,91 @@ class EcoModel:
 
         sd = self.dockwidget
 
-        mDict = self.createTempParmDict([[sd.tvGeneral.model().invisibleRootItem().child(0,0), False], [sd.tvQueries.model().invisibleRootItem().child(0,0), False], [sd.tvData.model().invisibleRootItem().child(0,0), True]])
-        logI(str(mDict))
-        root = sd.tvModels.model().invisibleRootItem()
-        for item in self.iterItemsChecked(root.child(0,0)):
+        mDict = self.createTempParmDict([[sd.tvGeneral.model().invisibleRootItem().child(0,0), True], [sd.tvQueries.model().invisibleRootItem().child(0,0), True], [sd.tvData.model().invisibleRootItem().child(0,0), True], [sd.tvModels.model().invisibleRootItem().child(0,0), True]])
+
+        mDict = {}
+        for root in [sd.tvGeneral.model().invisibleRootItem().child(0,0),sd.tvQueries.model().invisibleRootItem().child(0,0),sd.tvData.model().invisibleRootItem().child(0,0),sd.tvModels.model().invisibleRootItem().child(0,0)]:
+            for item in self.iterItemsChecked(root, True):
+                parent = item.parent()
+                key = parent.child(item.row(),0).text()
+                value = parent.child(item.row(),2).text()
+                mDict[key] = value
+
+        for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
             self.runModel(item, mDict)
 
     def runModel (self, item, mDict):
     
         sd = self.dockwidget
-        
-        mDict2 = self.createTempParmDict([[item, True]])
-        lDict = {**mDict, **mDict2}
 
-        # Find query
+        # Add specific query to dict
+        #mDict2 = self.createTempParmDict([[item, True]])
+
+        # Create union of dicts        
+        #lDict = {**mDict, **mDict2}
+        lDict = mDict # Kludge
+        
+        # First create query instance.
+        query = QSqlQuery()
+        
+        # Find query name
         parent = item.parent()
-        lTxt = parent.child(0,2).text()
-        qTxt = lDict[lTxt]
-        
-        lDict['result_geom'] = 'geom_byg'
-        lDict['result_pkid'] = 'fid'
+        lTxt = parent.child(item.row(),7).text() # From column "default"
+        logI (lTxt)
+        logI ( lDict[lTxt])
+        # Create new tablename for result datasaet using model name and timestamp
         lDict['tablename_ts'] = createDateTimeName(item.text())
-        lDict['sqlquery'] = qTxt.format(**lDict)
-        qct = lDict['Create_table'].format(**lDict)
-        logI(qct)
-        query = QSqlQuery() # First create query instance.
-        query.exec(qct)
+        logI (lDict['tablename_ts'])
+        # Create artificial query entry in lDict using actual query entry        
+        lDict['sqlquery'] = lDict[lTxt].format(**lDict)
 
+        # Create create table... command
+        qct = lDict['Create_result_table'].format(**lDict)
+        logI(qct)    
+
+        # Create table by executing command
+        query.exec(qct) 
+
+        if 'f_geom_'+ lTxt in lDict:
+
+            # Create artificial geom_column entry in lDict using actual query name        
+            lDict['geom_column'] = lDict['f_geom_' + lTxt] 
+            geom_col = lDict['geom_column']
+    
+            # Create spatial index... command
+            qct = lDict['Create_result_index'].format(**lDict)
+            logI(qct)    
+            # Create spatial index by executing command
+            query.exec(qct) # Create table with create spatial index and set primary key
+        else:
+            geom_col = ''
+        
+
+        if 'f_pkey_'+ lTxt in lDict:
+            # Create artificial pkey_column entry in lDict using actual query name        
+
+            lDict['pkey_column'] = lDict['f_pkey_'+ lTxt]
+            pkey_col = lDict['pkey_column']
+    
+            # Create primary key... command
+            qct = lDict['Create_result_pkey'].format(**lDict)
+            logI(qct)    
+    
+            # Create primary key by executing command
+            query.exec(qct) 
+        else:
+            pkey_col = ''
+
+        logI('geom_col=' + geom_col)
+        logI('pkey_col=' + pkey_col)
+        # Create layer with new table and add it to mapper
         contype = self.contype
         uri = self.conuri
-        uri.setDataSource(lDict['Result_schema'], lDict['tablename_ts'], lDict['result_geom'])#, '', lDict['result_pkid'])
+        uri.setDataSource(lDict['Result_schema'], lDict['tablename_ts'], geom_col , '', pkey_col)
         vlayer=QgsVectorLayer (uri .uri(), lDict['tablename_ts'], contype)
         QgsProject.instance().addMapLayer(vlayer)
 
-        
-        # run create table command 
 
-        #Find create primary key index  command
-        # Substitute placeholders in command
-        # Run command
-        
-        # Find create index geometry command
-        # Substitute placeholders in command
-        # Run command
-
-        # Connect to created table an show it in mapper window
         
     def createTempParmDict (self, roots):
 
@@ -451,35 +567,18 @@ class EcoModel:
                         tDict[key] = value
 
         return tDict
-        
-    def lookupItemsValue(self, root, lCol, lTxt, vCol):
-        if root is not None:
-            parent = root
-            for row in range(parent.rowCount()):
-                child = parent.child(row, lCol)
-                if child.text() == lTxt: 
-                    child2 = parent.child(row, vCol)
-                    return child2.text()
-        return None
-        
-    def iterItemsChecked(self, root):
-        if root is not None:
-            parent = root
-            for row in range(parent.rowCount()):
-                child = parent.child(row, 0)
-                if child.checkState() == Qt.Checked : yield child
-
-    def iterItems_org(self, root):
+                
+    def iterItemsChecked(self, root, dontCheck=False):
         if root is not None:
             stack = [root]
             while stack:
                 parent = stack.pop(0)
                 for row in range(parent.rowCount()):
-                    for column in range(parent.columnCount()):
-                        child = parent.child(row, column)
-                        yield child
-                        if child.hasChildren():
-                            stack.append(child)
+                    child = parent.child(row, 0)
+                    if child.checkState() == Qt.Checked or dontCheck : yield child
+                    if child.hasChildren(): stack.append(child)
+
+
 
     def createParmDict(self, txt, pkfield):
 
@@ -491,12 +590,12 @@ class EcoModel:
         while query.next():
             ldict = {}
             rec = query.record()
-            for i in range(rec.count()): ldict[rec.fieldName(i)] = query.value(i)
+            for i in range(rec.count()-1): ldict[rec.fieldName(i)] = query.value(i)
             pdict[query.value(pkfield)] = ldict
 
-        return pdict, [rec.fieldName(i) for i in range(rec.count())]
+        return pdict, [rec.fieldName(i) for i in range(rec.count()-1)]
 
-    def createTreeModels (self, modG, modD, modQ, modM, modR, pDict, fieldN, fieldP, hl):
+    def createTreeModels (self, modG, modD, modQ, modM, modR, pDict, fieldN, fieldP, fieldC, fieldE, hl):
 
         modG.setRowCount(0)
         modD.setRowCount(0)
@@ -519,8 +618,6 @@ class EcoModel:
 
         for k, v in pDict.items():
 
-            #logI ('**  ' + str(fieldP) + '->' + str(v[fieldP]))
-
             if str(v[fieldP]) == 'NULL':
                 if   v[fieldN] == 'General': parent = rootG
                 elif v[fieldN] == 'Data':    parent = rootD
@@ -532,11 +629,11 @@ class EcoModel:
                 parent = pDict[v[fieldP]]['_Id_']            
 
             row = []
-            check = (v[fieldP] == 'Models' or v[fieldP] == 'Reports')
-            for val in v.values():
+            for key, val in v.items():
                  qsi = QStandardItem('' if str(val)=='NULL' else str(val))
-                 qsi.setCheckable(check)
-                 check = False
+                 if key==fieldN:
+                     qsi.setCheckable(v[fieldC].upper() in ('T','Y','J','C'))
+                     if v[fieldE] != 'NULL' or v[fieldE] != '': qsi.setToolTip(str(v[fieldE]))
                  row.append(qsi) 
                 
             parent.appendRow(row)
@@ -545,57 +642,176 @@ class EcoModel:
 
         return (modG, modD, modQ, modM, modR)
 
-    def tvGeneralClicked(self, index):
+    def tvGeneralDoubleClicked(self, index):
+        self.tvAllDoubleClicked(self.dockwidget.tvGeneral, index)
 
+    def tvQueriesDoubleClicked(self, index):
+        self.tvAllDoubleClicked(self.dockwidget.tvQueries, index)
+
+    def tvDataDoubleClicked(self, index):
+        self.tvAllDoubleClicked(self.dockwidget.tvData, index)
+
+    def tvModelsDoubleClicked(self, index):
+        self.tvAllDoubleClicked(self.dockwidget.tvModels, index)
+
+    def tvReportsDoubleClicked(self, index):
+        self.tvAllDoubleClicked(self.dockwidget.tvReports, index)
+
+    def tvAllDoubleClicked(self, tree, index):
         sd = self.dockwidget
+        parent = index.parent()
+        row = index.row()
+        val = []
+        for col in range(PARM_NO_COLUMNS - 1):
+            it = parent.child(row, col)
+            val.append(str(it.data()))
 
-        if index.isValid():
+        rect = tree.visualRect(parent.child(row, 0))
+        pos = tree.viewport().mapToGlobal(rect.bottomLeft())
+        width = int(sd.width()*0.7)
         
-            rect = sd.tvGeneral.visualRect(index)
-            pos = sd.tvGeneral.viewport().mapToGlobal(rect.bottomLeft())
-            item = index.model().itemFromIndex(index)
-            parent = item.parent()
-            if parent:
-                val = [parent.child(index.row(), col).text() for col in range(parent.columnCount())]
-                dlg = QDialog()
-                dlg.setWindowTitle('Set value for "{}"->"{}"'.format(val[1],val[0]))
+        result, newval =  self.treeViewEditItem(pos, width, val)
+        
+        if result and newval:
+            it = parent.child(row, 2)
+            it.model().setData(it, newval)
+            #self.model().setData(index, QVariant(""), Qt.EditRole)
 
 
-                func = val[3].strip().upper()
-    
+    def treeViewEditItem(self, pos, width, val):
+
+        spdid = self.parm["Data"]["Item delimiter"]
+
+        dlg = QDialog()
+        dlg.setWindowTitle('Set value for "{}"->"{}"'.format(val[1],val[0]))
+
+        func = val[3].strip().upper()
+
+        if func in ['T','P','R','I','O','M','X','D','E','B']:
+
+            layout = QVBoxLayout()
+
+            if func=='T': # Single line
+
+                input = QLineEdit()
+                input.setText(val[2])
+
+            elif func=='P': # Multiple line           
+
+                input = QTextEdit()
+                input.setText(val[2])
+
+            elif func=='R': # Real value
+
+                input = QDoubleSpinBox()
+                input.setValue(float(val[2]))
+                #input.setMinimum(1.00)
+                #input.setMaximum(3500.00)
+                #input.setSingleStep(1.00)
+
+            elif func=='I': # Integer value
+
+                input = QSpinBox()
+                input.setValue(int(val[2]))
+
+            elif func=='O': # Single select
+
+                input = QComboBox()
+                input.clear()
+                input.addItems(val[6].split(spdid))
+                input.setCurrentIndex(input.findText(val[2]))
+                
+            elif func=='M': # Multiple select
+
+                input = QgsCheckableComboBox()
+                input.clear()
+                input.setSeparator(spdid)
+                input.addItems(val[6].split(spdid))
+                input.setCheckedItems(val[2].split(spdid))
+                #input.checkedItems()-- liste med checked items
+                
+            elif func=='X': # Datetime
+
+                input = QDateTimeEdit()
+                input.setDateTime(QDateTime.fromString(val[2],"yyyy-MM-dd HH:mm:ss"))
+                input.setCalendarPopup(True)
+
+                
+            elif func=='D': # Date
+
+                input = QDateEdit()
+                input.setDate(QDate.fromString(val[2],"yyyy-MM-dd"))
+                input.setCalendarPopup(True)
+                
+            elif func=='E': # Time
+
+                input = QTimeEdit()
+                input.setTime(QTime.fromString(val[2],"HH:mm:ss"))
+
+            elif func=='B': # Boolean
+                input= QCheckBox(val[6])
+                input.setChecked(val[2].upper()=='TRUE')
+                
+            layout.addWidget(input)
+
+            buttonBox = QDialogButtonBox()
+            buttonBox.setStandardButtons(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttonBox.rejected.connect(dlg.reject)
+            buttonBox.accepted.connect(dlg.accept)
+            layout.addWidget(buttonBox)
+
+            layout.setSizeConstraint(QLayout.SetFixedSize)
+            dlg.setLayout(layout)
+            dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
+            input.setMinimumWidth(width)
+            dlg.move(pos)
+
+            res = dlg.exec()
+
+            if res:
+
                 if func=='T': # Single line
-                    input = QLineEdit()
-                    input.setText(val[2])
+    
+                    value = input.text()
+    
                 elif func=='P': # Multiple line           
-                    input = QTextEdit()
-                    input.setText(val[2])
-                elif func=='R':
-                    input = QDoubleSpinBox()
-                    input.setValue(float(val[2]))
-                elif func=='I':
-                    input = QSpinBox()
-                    input.setValue(int(val[2]))
+    
+                    value = input.toPlainText()
+    
+                elif func=='R': # Real value
+    
+                    value = str(input.value())
+    
+                elif func=='I': # Integer value
+    
+                    value = str(input.value())
+    
+                elif func=='O': # Single select
+    
+                    value = str(input.currentText())
                     
+                elif func=='M': # Multiple select
+    
+                    value = spdid.join(input.checkedItems())
+                    
+                elif func=='X': # Datetime
+    
+                    value = input.dateTime().toString("yyyy-MM-dd HH:mm:ss")
+                    
+                elif func=='D': # Date
+    
+                    value = input.date().toString("yyyy-MM-dd")
+                    
+                elif func=='E': # Time
+    
+                    value = input.time().toString("HH:mm:ss")
+    
+                elif func=='B': # Boolean
 
-                if func!='G':
-                    layout = QVBoxLayout()
-                    buttonBox = QDialogButtonBox()
-                    buttonBox.setStandardButtons(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-                    buttonBox.rejected.connect(dlg.reject)
-                    buttonBox.accepted.connect(dlg.accept)
-                    layout.addWidget(input)
-                    layout.addWidget(buttonBox)
-                    layout.setSizeConstraint(QLayout.SetFixedSize)
-                    dlg.setLayout(layout)
-                    dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
-                    input.setMinimumWidth(int(sd.width()*0.7))
-                    dlg.move(pos)
-                    res = dlg.exec()
-        
-                    if res:
-                        logI('Yes :-): ' + input.text())
-                    else:
-                        logI('No :-)')
+                    value = 'True' if input.isChecked() else 'False'
+                
+            else:
+                value = None
+                
+            return res, value
 
-
-# ['Create_table', 'General', 'CREATE TABLE "{Result_schema}"."{tablename_ts}" AS {sqlquery}', 'T', '', '', '', '', 'SQL template for creating result tables', '10', '1']
