@@ -329,46 +329,46 @@ class EcoModel:
         
     def pbParameterSaveClicked(self):
 
-        deleteTemplate = 'DELETE FROM {parametertable}'
+        deleteTemplate = 'DELETE FROM {}'
+        insertTemplate = 'INSERT INTO {} ({}) VALUES ({});'
         parametertable = 'data.parameters'
         sd = self.dockwidget
 
         columnNames =  [sd.tvGeneral.model().headerData(i,Qt.Horizontal) for i in range(sd.tvGeneral.model().columnCount())]
+        colnames = '", "'.join(columnNames)
+        colnames= '"' + colnames + '"'
+        logI(colnames)
 
-#        query = QSqlQuery() # First create query instance.
-#        query.exec(deleteTemplate.format(parametertable))
-#
-#        while query.next():
-#            ldict = {}
-#            rec = query.record()
-#            for i in range(rec.count()): ldict[rec.fieldName(i)] = query.value(i)
-#            pdict[query.value(pkfield)] = ldict
-#        n0 = 0
-#        no += self.insertTreeRows (tableName, insertTemplate, root.child(0,0))
-#        
-# 
-#        if root is not None:
-#        for row in range(root.rowCount()):
-#            row_item = root.child(row, 0)
-#            if row_item.hasChildren():
-#                for childIndex in range(row_item.rowCount()):
-#                    # Take second column from "child"-row
-#                    child = row_item.child(childIndex, 1)
-#                    yield child
-#
-#
-#        # Get the table as a layer
-#
-#        # Iterate 5 trees general, queries, data, models, reports
-#        root = sd.tvGeneral.model().invisibleRootItem()
-#        columnNames= 
-#
-#        return pdict, [rec.fieldName(i) for i in range(rec.count())]
-#
-#or(int i = 0; i < myTableView->model()->columnCount(); i++)
-#{
-#  headers.append(myTableView->model()->headerData(i,Qt.Horizontal).toString());
-#}
+        placeList =  [' ?' for i in range(sd.tvGeneral.model().columnCount())]
+        placeholders = ','.join(placeList)
+        logI(placeholders)
+
+        insertCmd = insertTemplate.format(parametertable, colnames, placeholders)
+        logI(insertCmd)
+
+        insertDataQuery = QSqlQuery()
+        insertDataQuery.exec(deleteTemplate.format(parametertable))        
+
+        insertDataQuery.prepare(insertCmd)
+        for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
+            for row in self.iterRowItems(tv.model().invisibleRootItem()): 
+                #logI(str(row))
+                for i in range(len(row)): insertDataQuery.addBindValue(row[i])
+                insertDataQuery.exec()
+                logI(insertDataQuery.lastError().text())                
+              
+        
+    def iterRowItems(self, root):
+        if root is not None:
+            stack = [root]
+            while stack:
+                parent = stack.pop(0)
+                for row in range(parent.rowCount()):
+                    rowval = []
+                    for column in range(parent.columnCount()): rowval.append(parent.child(row, column).text())
+                    yield rowval
+                    child0 = parent.child(row, 0)
+                    if child0.hasChildren(): stack.append(child0)
 
     def dbConnection2Db (self, dbType, connectionName):
 
@@ -476,16 +476,9 @@ class EcoModel:
         for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
             self.runModel(item, mDict)
 
-    def runModel (self, item, mDict):
+    def runModel (self, item, lDict):
     
         sd = self.dockwidget
-
-        # Add specific query to dict
-        #mDict2 = self.createTempParmDict([[item, True]])
-
-        # Create union of dicts        
-        #lDict = {**mDict, **mDict2}
-        lDict = mDict # Kludge
         
         # First create query instance.
         query = QSqlQuery()
@@ -493,6 +486,7 @@ class EcoModel:
         # Find query name
         parent = item.parent()
         lTxt = parent.child(item.row(),7).text() # From column "default"
+        nTxt = parent.child(item.row(),0).text() # From column "name"
         logI (lTxt)
         logI ( lDict[lTxt])
         # Create new tablename for result datasaet using model name and timestamp
@@ -545,9 +539,12 @@ class EcoModel:
         uri = self.conuri
         uri.setDataSource(lDict['Result_schema'], lDict['tablename_ts'], geom_col , '', pkey_col)
         vlayer=QgsVectorLayer (uri .uri(), lDict['tablename_ts'], contype)
+
         QgsProject.instance().addMapLayer(vlayer)
 
-
+        stylePath = os.path.join(self.plugin_dir, 'styles', nTxt + '.qml')
+        logI(stylePath)
+        if os.path.isfile(stylePath): vlayer.loadNamedStyle(stylePath)
         
     def createTempParmDict (self, roots):
 
@@ -585,6 +582,7 @@ class EcoModel:
         pdict = {}    
 
         query = QSqlQuery() # First create query instance.
+        logI(txt)
         query.exec(txt)
 
         while query.next():
@@ -618,7 +616,7 @@ class EcoModel:
 
         for k, v in pDict.items():
 
-            if str(v[fieldP]) == 'NULL':
+            if str(v[fieldP]) == '':
                 if   v[fieldN] == 'General': parent = rootG
                 elif v[fieldN] == 'Data':    parent = rootD
                 elif v[fieldN] == 'Queries': parent = rootQ
@@ -814,4 +812,5 @@ class EcoModel:
                 value = None
                 
             return res, value
-
+            
+        return None, None
