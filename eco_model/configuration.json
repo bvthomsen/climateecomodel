@@ -2,7 +2,7 @@
     "Data": {
         "Database": "postgres: ecomodel on localhost",
         "Parametertable": "data.parameters",
-		"ParameterSQL" : "WITH RECURSIVE tree_search AS (SELECT *, 0 AS \"level\" FROM \"data\".\"parameters\" WHERE \"parent\" = '' UNION ALL SELECT t.*, ts.\"level\"+1 AS \"level\" FROM \"data\".\"parameters\" t, tree_search ts WHERE t.\"parent\" = ts.\"name\") SELECT * FROM tree_search ORDER BY \"level\", \"sort\";",
+		"ParameterSQL" : "WITH RECURSIVE tree_search AS (SELECT *, 0 AS \"level\" FROM {parametertable} WHERE \"parent\" = '' UNION ALL SELECT t.*, ts.\"level\"+1 AS \"level\" FROM {parametertable} t, tree_search ts WHERE t.\"parent\" = ts.\"name\") SELECT * FROM tree_search ORDER BY \"level\", \"sort\";",
         "Load as layer": false,
         "Item delimiter" : "¤"
     }

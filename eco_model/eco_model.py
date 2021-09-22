@@ -331,8 +331,9 @@ class EcoModel:
 
         deleteTemplate = 'DELETE FROM {}'
         insertTemplate = 'INSERT INTO {} ({}) VALUES ({});'
-        parametertable = 'data.parameters'
+
         sd = self.dockwidget
+        parametertable = sd.leParameterTable.text()
 
         columnNames =  [sd.tvGeneral.model().headerData(i,Qt.Horizontal) for i in range(sd.tvGeneral.model().columnCount())]
         colnames = '", "'.join(columnNames)
@@ -424,6 +425,7 @@ class EcoModel:
 
                 uri = self.conuri
 
+         
                 if sd.leParameterTable.text().find('.') >= 0:
                     sandt = sd.leParameterTable.text().split('.',1)
                     uri.setSchema(sandt[0])
@@ -434,7 +436,7 @@ class EcoModel:
                     QgsProject.instance().addMapLayer(self.parameterLayer)
 
         
-            self.parmDict, hl = self.createParmDict(sd.leParameterSQL.text(),0)        
+            self.parmDict, hl = self.createParmDict(sd.leParameterSQL.text().format(parametertable=sd.leParameterTable.text()),0)        
             (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', 'checkable', 'explanation', hl)
         
             sd.tvGeneral.setModel(modG)
@@ -627,14 +629,20 @@ class EcoModel:
                 parent = pDict[v[fieldP]]['_Id_']            
 
             row = []
+            cable = False
             for key, val in v.items():
-                 qsi = QStandardItem('' if str(val)=='NULL' else str(val))
-                 if key==fieldN:
-                     qsi.setCheckable(v[fieldC].upper() in ('T','Y','J','C'))
-                     if v[fieldE] != 'NULL' or v[fieldE] != '': qsi.setToolTip(str(v[fieldE]))
-                 row.append(qsi) 
+                qsi = QStandardItem('' if str(val)=='NULL' else str(val))
+                if key==fieldN:
+                    if v[fieldC].upper() in ('T','Y','J','C'):
+                        #qsi.setCheckable(True)
+                        qsi.setFlags(qsi.flags() | Qt.ItemIsUserCheckable)
+                        qsi.setCheckState(Qt.Unchecked)
+                        cable = True
+                    if v[fieldE] != 'NULL' or v[fieldE] != '': qsi.setToolTip(str(v[fieldE]))
+                row.append(qsi) 
                 
             parent.appendRow(row)
+            if cable: parent.setFlags(parent.flags() | Qt.ItemIsTristate | Qt.ItemIsUserCheckable)
 #            parent.appendRow([QStandardItem('' if str(val)=='NULL' else str(val)) for val in v.values()])
             pDict[k]['_Id_'] = parent.child(parent.rowCount() - 1)
 
@@ -814,3 +822,30 @@ class EcoModel:
             return res, value
             
         return None, None
+
+
+#   def ModelItemChanged(self, item):
+#
+#       if not item.checkable(): return
+#   
+#       parent = item.parent();
+#
+#       if not parent:
+#           newState = item.checkState();
+#           if(newState != Qt.PartiallyChecked):
+#               for i in range(item.rowCount()): 
+#                   if item.child(i).isCheckable(): item.child(i).setCheckState(newState)
+#       else:
+#       checkCount = 0
+#       for i in range(parent.rowCount()):
+#           if (parent->child(i)->checkState() == Qt::Checked): checkCount +=1
+#
+#       if(checkCount == 0)
+#           parent->setCheckState(Qt::Unchecked);
+#       else if (checkCount ==  parent->rowCount())
+#           parent->setCheckState(Qt::Checked);
+#       else
+#           parent->setCheckState(Qt::PartiallyChecked);
+#   else: 
+#
+#
