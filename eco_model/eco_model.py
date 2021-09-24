@@ -90,7 +90,9 @@ from .helper import (tr,
                      copyLayer2Layer,
                      findLayerVariableValue,
                      evalLayerVariable,
-                     zoomToFeature)
+                     zoomToFeature,
+                     isInt,
+                     isFloat)
 
 from .eco_model_dockwidget import EcoModelDockWidget
 
@@ -324,8 +326,8 @@ class EcoModel:
                 
         sd.cbDatabase.setCurrentIndex(sd.cbDatabase.findText(spd['Database']))
         sd.leParameterTable.setText(spd['Parametertable'])        
-        sd.leParameterSQL.setText(spd['ParameterSQL'])        
-        sd.chbParameter.setChecked(spd['Load as layer'])        
+        #sd.leParameterSQL.setText(spd['ParameterSQL'])        
+        #sd.chbParameter.setChecked(spd['Load as layer'])        
         
     def pbParameterSaveClicked(self):
 
@@ -413,30 +415,30 @@ class EcoModel:
     def pbParameterResetClicked(self):
 
         sd = self.dockwidget
-        
-        if sd.cbDatabase.currentIndex() >= 0 and sd.leParameterTable.text() != '':
+        spd = self.parm["Data"]
+
+        if sd.cbDatabase.currentIndex() >= 0:
             setting = sd.cbDatabase.itemData(sd.cbDatabase.currentIndex())
 
             self.conuri = self.dbConnection2Db (setting[0], setting[1])
             self.contype = setting[0]
             
 
-            if sd.chbParameter.isChecked():
+#            if sd.chbParameter.isChecked():
+#
+#                uri = self.conuri
+#
+#         
+#                if sd.leParameterTable.text().find('.') >= 0:
+#                    sandt = sd.leParameterTable.text().split('.',1)
+#                    uri.setSchema(sandt[0])
+#                    uri.setTable(sandt[1])
+#                else:
+#                    uri.setTable(sd.leParameterTable.text())
+#                    self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
+#                    QgsProject.instance().addMapLayer(self.parameterLayer)
 
-                uri = self.conuri
-
-         
-                if sd.leParameterTable.text().find('.') >= 0:
-                    sandt = sd.leParameterTable.text().split('.',1)
-                    uri.setSchema(sandt[0])
-                    uri.setTable(sandt[1])
-                else:
-                    uri.setTable(sd.leParameterTable.text())
-                    self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
-                    QgsProject.instance().addMapLayer(self.parameterLayer)
-
-        
-            self.parmDict, hl = self.createParmDict(sd.leParameterSQL.text().format(parametertable=sd.leParameterTable.text()),0)        
+            self.parmDict, hl = self.createParmDict(spd["Parametertable"], spd["Parameterkeyfield"], spd["Parameterkeyvalue"], spd["Parametervaluefield"])        
             (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', 'checkable', 'explanation', hl)
         
             sd.tvGeneral.setModel(modG)
@@ -577,16 +579,21 @@ class EcoModel:
                     if child.checkState() == Qt.Checked or dontCheck : yield child
                     if child.hasChildren(): stack.append(child)
 
+    def createParmDict(self, ptable, pkfield, pkvalue, pvfield):
 
 
-    def createParmDict(self, txt, pkfield):
+        query = QSqlQuery()
 
-        pdict = {}    
+        txt = 'SELECT {0} FROM {1} WHERE {2}=\'{3}\''.format( pvfield, ptable, pkfield, pkvalue)
 
-        query = QSqlQuery() # First create query instance.
-        logI(txt)
+        query.exec(txt)
+        while query.next():
+            txt = query.value(0)
+
+        txt = txt.format(parametertable=ptable)
         query.exec(txt)
 
+        pdict = {}    
         while query.next():
             ldict = {}
             rec = query.record()
@@ -684,6 +691,8 @@ class EcoModel:
             #self.model().setData(index, QVariant(""), Qt.EditRole)
 
 
+
+
     def treeViewEditItem(self, pos, width, val):
 
         spdid = self.parm["Data"]["Item delimiter"]
@@ -696,6 +705,7 @@ class EcoModel:
         if func in ['T','P','R','I','O','M','X','D','E','B']:
 
             layout = QVBoxLayout()
+            logI(str(val))
 
             if func=='T': # Single line
 
@@ -710,14 +720,17 @@ class EcoModel:
             elif func=='R': # Real value
 
                 input = QDoubleSpinBox()
+                input.setMinimum(float(val[4]))
+                input.setMaximum(float(val[5]))
+                input.setSingleStep(float(val[6]))
                 input.setValue(float(val[2]))
-                #input.setMinimum(1.00)
-                #input.setMaximum(3500.00)
-                #input.setSingleStep(1.00)
 
             elif func=='I': # Integer value
 
                 input = QSpinBox()
+                input.setMinimum(int(val[4]))
+                input.setMaximum(int(val[5]))
+                input.setSingleStep(int(val[6]))
                 input.setValue(int(val[2]))
 
             elif func=='O': # Single select

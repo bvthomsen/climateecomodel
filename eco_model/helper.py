@@ -671,3 +671,37 @@ def copyLayer2Layer(lyr, udict, owrite):
         return QgsVectorLayer(uristr, lyr.name(),contype)
         
 
+def isInt(s):
+    try: 
+        int(s)
+    except: 
+        return False
+    return True
+
+def isFloat(s):
+    try: 
+        float(s)
+    except: 
+        return False
+    return True
+
+def isDateTime(s, f):
+    try: 
+        QDateTime.fromString(s,f)
+    except: 
+        return False
+    return True
+
+def isDate(s, f):
+    try: 
+        QDate.fromString(s,f)
+    except: 
+        return False
+    return True
+
+def isTime(s, f):
+    try: 
+        QTime.fromString(s,f)
+    except: 
+        return False
+    return True
