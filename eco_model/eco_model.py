@@ -477,14 +477,15 @@ class EcoModel:
                 value = parent.child(item.row(),2).text()
                 mDict[key] = value
 
-        # Create layergroup
-        root = QgsProject.instance().layerTreeRoot()
-        rsltgroup = createGroup(findInDict('Result_group', root, True):
- 
-           
+        # Create results layergroup
+        rGroup = createGroup(mDict['Model_layergroup'], QgsProject.instance().layerTreeRoot(), True)
+        rDtnGroup = createGroup(mDict['Prefix_date'] + QDateTime.currentDateTime().toString(Qt.ISODate), rGroup, False)
 
+
+        # run choosen models
         for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
-            self.runModel(item, mDict)
+            tname, vlayer = self.runModel(item, mDict)
+            if  vlayer: addLayer2Tree(rDtnGroup, vlayer, False, 'eco_layername', tname, os.path.join(self.plugin_dir, 'styles', item.text() + '.qml'), item.text())
 
     def runModel (self, item, lDict):
     
@@ -542,19 +543,14 @@ class EcoModel:
         else:
             pkey_col = ''
 
-        logI('geom_col=' + geom_col)
-        logI('pkey_col=' + pkey_col)
         # Create layer with new table and add it to mapper
+
         contype = self.contype
         uri = self.conuri
         uri.setDataSource(lDict['Result_schema'], lDict['tablename_ts'], geom_col , '', pkey_col)
-        vlayer=QgsVectorLayer (uri .uri(), lDict['tablename_ts'], contype)
+        vlayer=QgsVectorLayer (uri.uri(), nTxt, contype)
 
-        QgsProject.instance().addMapLayer(vlayer)
-
-        stylePath = os.path.join(self.plugin_dir, 'styles', nTxt + '.qml')
-        logI(stylePath)
-        if os.path.isfile(stylePath): vlayer.loadNamedStyle(stylePath)
+        return lDict['tablename_ts'], vlayer
         
 #    def createTempParmDict (self, roots):
 #
