@@ -467,7 +467,7 @@ class EcoModel:
 
         sd = self.dockwidget
 
-        mDict = self.createTempParmDict([[sd.tvGeneral.model().invisibleRootItem().child(0,0), True], [sd.tvQueries.model().invisibleRootItem().child(0,0), True], [sd.tvData.model().invisibleRootItem().child(0,0), True], [sd.tvModels.model().invisibleRootItem().child(0,0), True]])
+        #mDict = self.createTempParmDict([[sd.tvGeneral.model().invisibleRootItem().child(0,0), True], [sd.tvQueries.model().invisibleRootItem().child(0,0), True], [sd.tvData.model().invisibleRootItem().child(0,0), True], [sd.tvModels.model().invisibleRootItem().child(0,0), True]])
 
         mDict = {}
         for root in [sd.tvGeneral.model().invisibleRootItem().child(0,0),sd.tvQueries.model().invisibleRootItem().child(0,0),sd.tvData.model().invisibleRootItem().child(0,0),sd.tvModels.model().invisibleRootItem().child(0,0)]:
@@ -476,6 +476,12 @@ class EcoModel:
                 key = parent.child(item.row(),0).text()
                 value = parent.child(item.row(),2).text()
                 mDict[key] = value
+
+        # Create layergroup
+        root = QgsProject.instance().layerTreeRoot()
+        rsltgroup = createGroup(findInDict('Result_group', root, True):
+ 
+           
 
         for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
             self.runModel(item, mDict)
@@ -550,24 +556,24 @@ class EcoModel:
         logI(stylePath)
         if os.path.isfile(stylePath): vlayer.loadNamedStyle(stylePath)
         
-    def createTempParmDict (self, roots):
-
-        tDict = {}    
-        for r in roots:
-            r0 = r[0]
-            r1 = r[1]            
-            for row in range(r0.rowCount()):
-                key   = r0.child(row, 0).text()
-                value = r0.child(row, 2).text()
-                tDict[key] = value
-                item = r0.child(row, 0)
-                if r1 and item.hasChildren():
-                    for rowi in range(item.rowCount()):
-                        key   = item.child(rowi, 0).text()
-                        value = item.child(rowi, 2).text()
-                        tDict[key] = value
-
-        return tDict
+#    def createTempParmDict (self, roots):
+#
+#        tDict = {}    
+#        for r in roots:
+#            r0 = r[0]
+#            r1 = r[1]            
+#            for row in range(r0.rowCount()):
+#                key   = r0.child(row, 0).text()
+#                value = r0.child(row, 2).text()
+#                tDict[key] = value
+#                item = r0.child(row, 0)
+#                if r1 and item.hasChildren():
+#                    for rowi in range(item.rowCount()):
+#                        key   = item.child(rowi, 0).text()
+#                        value = item.child(rowi, 2).text()
+#                        tDict[key] = value
+#
+#        return tDict
                 
     def iterItemsChecked(self, root, dontCheck=False):
         if root is not None:
