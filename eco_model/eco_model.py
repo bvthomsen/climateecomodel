@@ -282,6 +282,7 @@ class EcoModel:
                 sd.pbDatabase.clicked.connect(self.pbDatabaseClicked)
                 sd.pbParameterSave.clicked.connect(self.pbParameterSaveClicked)
                 sd.pbParameterReset.clicked.connect(self.pbParameterResetClicked)
+                sd.pbParameterShow.clicked.connect(self.pbParameterShowClicked)
                 sd.pbModelRun.clicked.connect(self.pbModelRunClicked)
 
                 for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
@@ -410,6 +411,22 @@ class EcoModel:
             return None, None
 
         return uri    
+
+
+    def pbParameterShowClicked(self):
+
+        sd = self.dockwidget
+        uri = self.conuri
+ 
+        if sd.leParameterTable.text().find('.') >= 0:
+            sandt = sd.leParameterTable.text().split('.',1)
+            uri.setSchema(sandt[0])
+            uri.setTable(sandt[1])
+        else:
+            uri.setTable(sd.leParameterTable.text())
+
+        self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
+        if self.parameterLayer: addLayer2Tree(QgsProject.instance().layerTreeRoot(), self.parameterLayer, False, 'eco_layername', sd.leParameterTable.text(), os.path.join(self.plugin_dir, 'styles', 'parameters.qml'),'Parameters')
     
 
     def pbParameterResetClicked(self):
@@ -422,21 +439,6 @@ class EcoModel:
 
             self.conuri = self.dbConnection2Db (setting[0], setting[1])
             self.contype = setting[0]
-            
-
-#            if sd.chbParameter.isChecked():
-#
-#                uri = self.conuri
-#
-#         
-#                if sd.leParameterTable.text().find('.') >= 0:
-#                    sandt = sd.leParameterTable.text().split('.',1)
-#                    uri.setSchema(sandt[0])
-#                    uri.setTable(sandt[1])
-#                else:
-#                    uri.setTable(sd.leParameterTable.text())
-#                    self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
-#                    QgsProject.instance().addMapLayer(self.parameterLayer)
 
             self.parmDict, hl = self.createParmDict(spd["Parametertable"], spd["Parameterkeyfield"], spd["Parameterkeyvalue"], spd["Parametervaluefield"])        
             (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', 'checkable', 'explanation', hl)
