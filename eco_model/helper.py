@@ -614,6 +614,28 @@ def fArr2QgsPointArr(flist):
 def addLayer2Tree(tree, layer, tb, vname=None, vvalue=None, style=None, tname=None):
     """Replace with explanation"""
 
+    if tb:
+        ltl = tree.insertLayer(0, layer)
+    else:
+        ltl = tree.addLayer(layer)
+
+    QgsProject.instance().addMapLayer(layer, False)
+
+    if style:
+        layer.loadNamedStyle(style)
+
+    if tname:
+        ltl.setName(tname)
+
+    assignLayerVariable(layer, vname, vvalue)
+
+    layer.triggerRepaint()
+
+    return ltl
+
+def addLayer2TreeV1(tree, layer, tb, vname=None, vvalue=None, style=None, tname=None):
+    """Replace with explanation"""
+
     ltl, l2 = findLayerVariableValue(vname, vvalue)
 
     if l2 is None:
