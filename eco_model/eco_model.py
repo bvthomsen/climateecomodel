@@ -457,6 +457,7 @@ class EcoModel:
             #if qsi.hasChildren(): rootC.appendRow([qsi, QStandardItem(ltl.parent().name())])
 
         sd.tvCells.setModel(modC)
+        sd.tvCells.hideColumn(2)
         sd.tvCells.header().setStretchLastSection(True);
         sd.tvCells.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         sd.tvCells.setAlternatingRowColors(True)        
@@ -540,6 +541,8 @@ class EcoModel:
         insertTemplate = 'INSERT INTO {} ({}) VALUES ({});'
 
         sd = self.dockwidget
+        spd = self.parm["Data"]
+
         parametertable = sd.leParameterTable.text()
 
         columnNames =  [sd.tvGeneral.model().headerData(i,Qt.Horizontal) for i in range(sd.tvGeneral.model().columnCount())]
@@ -638,6 +641,10 @@ class EcoModel:
         sd = self.dockwidget
         spd = self.parm["Data"]
 
+        spd["Parametertable"] =  sd.leParameterTable.text() 
+        spd["Database"] =  sd.cbDatabase.currentText() 
+        write_config(os.path.join(self.plugin_dir, 'configuration.json'), self.parm)
+
         if sd.cbDatabase.currentIndex() >= 0:
             setting = sd.cbDatabase.itemData(sd.cbDatabase.currentIndex())
 
@@ -699,6 +706,9 @@ class EcoModel:
             qname, vlayer = self.runModel(item, mDict)
             if  vlayer: addLayer2Tree(rDtnGroup, vlayer, False, 'eco_resultlayer', qname, os.path.join(self.plugin_dir, 'styles', item.text() + '.qml'), item.text())
 
+        self.pbUpdateLayerTreeClicked()
+
+     
     def runModel (self, item, lDict):
     
         sd = self.dockwidget
