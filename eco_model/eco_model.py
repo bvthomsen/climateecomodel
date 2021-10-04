@@ -63,6 +63,7 @@ from qgis.PyQt.QtSql import (QSqlDatabase, QSqlQuery)
 from qgis.core import (QgsProject,
                        QgsProviderRegistry,
                        QgsDataSourceUri,
+                       QgsExpressionContextUtils,
                        QgsVectorLayer)
 
 from qgis.gui import QgsFileWidget, QgsCheckableComboBox
@@ -92,7 +93,9 @@ from .helper import (tr,
                      evalLayerVariable,
                      zoomToFeature,
                      isInt,
-                     isFloat)
+                     isFloat,
+                     mapperExtent,
+                    findLayerVariableList)
 
 from .eco_model_dockwidget import EcoModelDockWidget
 
@@ -284,6 +287,16 @@ class EcoModel:
                 sd.pbParameterReset.clicked.connect(self.pbParameterResetClicked)
                 sd.pbParameterShow.clicked.connect(self.pbParameterShowClicked)
                 sd.pbModelRun.clicked.connect(self.pbModelRunClicked)
+                sd.pbMapperExtents.clicked.connect(self.pbMapperExtentsClicked)
+                sd.pbCreateCellLayer.clicked.connect(self.pbCreateCellLayerClicked)
+                sd.pbUpdCellLayer.clicked.connect(self.pbUpdCellLayerClicked)
+                sd.pbClearValues.clicked.connect(self.pbClearValuesClicked)
+                sd.pbUpdateLayerTree.clicked.connect(self.pbUpdateLayerTreeClicked)
+                sd.pbDamage.clicked.connect(self.pbDamageClicked)
+                sd.pbValue.clicked.connect(self.pbValueClicked)
+                sd.pbRisk.clicked.connect(self.pbRiskClicked)
+                sd.pbClearAll.clicked.connect(self.pbClearAllClicked)
+                sd.pbCellExtract.clicked.connect(self.pbCellExtractClicked)
 
                 for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
                     tv.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -298,6 +311,8 @@ class EcoModel:
 
                 self.pbDatabaseClicked()
                 self.pbParameterResetClicked()
+                self.pbUpdCellLayerClicked()
+                self.pbUpdateLayerTreeClicked()
                 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
@@ -330,6 +345,195 @@ class EcoModel:
         #sd.leParameterSQL.setText(spd['ParameterSQL'])        
         #sd.chbParameter.setChecked(spd['Load as layer'])        
         
+    def pbMapperExtentsClicked(self):
+
+        sd = self.dockwidget
+        extent = self.iface.mapCanvas().extent()
+
+        sd.dsbXMin.setValue(extent.xMinimum())
+        sd.dsbXMax.setValue(extent.xMaximum())
+        sd.dsbYMin.setValue(extent.yMinimum())
+        sd.dsbYMax.setValue(extent.yMaximum())
+
+
+
+    def pbUpdCellLayerClicked(self):
+
+        sd = self.dockwidget
+
+        vlist = findLayerVariableList ('eco_celllayer')
+        sd.cbCellLayer.clear()
+        root = QgsProject.instance().layerTreeRoot()
+        for v in vlist:
+            ltl = root.findLayer(v)
+            sd.cbCellLayer.addItem(ltl.name(),ltl)
+        
+
+    def pbCreateCellLayerClicked(self):
+
+        sd = self.dockwidget
+
+        createCellTemplate = self.parmDict['Create cell layer template']['value']
+        clayer = sd.leLayerName.text()
+
+        if clayer.find('.') < 0: # tablename without schema definition 
+            clayer = self.parmDict['Result_schema']['value'] + '.' + clayer
+
+        sqlCmd = createCellTemplate.format(
+            celltable=clayer,
+            epsg=self.iface.mapCanvas().mapSettings().destinationCrs().authid().replace('EPSG:',''),
+            xmin=sd.dsbXMin.value(),
+            xmax=sd.dsbXMax.value(),
+            ymin=sd.dsbYMin.value(),
+            ymax=sd.dsbYMax.value(),
+            cellsize=sd.dsbCellSize.value()
+        )
+
+        query = QSqlQuery()
+        query.exec(sqlCmd)    
+
+        error = query.lastError().text()
+        if error != '':
+            messC(error)                
+
+        else: 
+            uri = self.conuri
+            sandt = clayer.split('.',1)
+            uri.setDataSource (sandt[0], sandt[1], 'geom')
+            layer = QgsVectorLayer(uri.uri(), clayer, self.contype)
+            ltl = addLayer2Tree(QgsProject.instance().layerTreeRoot(), layer, True, 'eco_celllayer', clayer, os.path.join(self.plugin_dir, 'styles', 'cells.qml'), clayer)
+            sd.cbCellLayer.addItem(layer.name(), ltl)
+            sd.cbCellLayer.setCurrentIndex(sd.cbCellLayer.count()-1)
+            
+    def pbClearValuesClicked(self):
+
+        sd = self.dockwidget
+        ltl = sd.cbCellLayer.currentData()
+        clearTemplate = self.parmDict['Clear cell layer template']['value']
+        uri = ltl.layer().dataProvider().uri()
+        sqlCmd = clearTemplate.format(schema = uri.schema(), table = uri.table())
+        query = QSqlQuery()
+        query.exec(sqlCmd)    
+        ltl.layer().triggerRepaint()
+        ltl.layer().reload()
+        self.iface.mapCanvas().refresh()
+
+    def pbUpdateLayerTreeClicked(self):
+
+        sd = self.dockwidget
+
+        modC = QStandardItemModel()
+        modC.setRowCount(0)
+        rootC = modC.invisibleRootItem()
+        modC.setHorizontalHeaderLabels(['Navn','Gruppe/Beløbstype','Uri'])
+
+        ltRoot = QgsProject.instance().layerTreeRoot()
+        tvqmRoot = sd.tvQueries.model().invisibleRootItem().child(0,0)
+        idList = findLayerVariableList('eco_resultlayer')
+
+        # Enumerate list
+        for id in idList:
+            ltl = ltRoot.findLayer(id)        
+            qsi = QStandardItem(ltl.name())
+
+            qname = QgsExpressionContextUtils.layerScope(ltl.layer()).variable('eco_resultlayer') 
+
+            uri = ltl.layer().dataProvider().uri()
+            tabledef = uri.quotedTablename() 
+            # Find query item
+            for item in self.iterItemsMatch(tvqmRoot, qname): 
+                # Find field item thats checkable
+                for jtem in self.iterRowCheckable(item): 
+                    qsisub = QStandardItem(jtem[2].text())
+                    qsisub.setFlags(qsisub.flags() | Qt.ItemIsUserCheckable)
+                    qsisub.setCheckState(Qt.Unchecked)
+                    vtype = 'Skadesomkostninger' if jtem[0].text()[:6]=='f_dama' else 'Værditab' if jtem[0].text()[:6]=='f_loss' else 'Risiko' 
+                    qsi.appendRow([qsisub,QStandardItem(vtype),QStandardItem(id)])  
+            
+            if qsi.hasChildren(): 
+                rootC.appendRow([qsi, QStandardItem(ltl.parent().name()), QStandardItem('')])
+            
+            
+            #if qsi.hasChildren(): rootC.appendRow([qsi, QStandardItem(ltl.parent().name())])
+
+        sd.tvCells.setModel(modC)
+        sd.tvCells.header().setStretchLastSection(True);
+        sd.tvCells.header().setSectionResizeMode(QHeaderView.ResizeToContents)
+        sd.tvCells.setAlternatingRowColors(True)        
+        sd.tvCells.expandAll()
+
+    def pbDamageClicked(self):
+
+        sd = self.dockwidget
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Skadesomkostninger',1,Qt.Checked)
+    
+    def pbValueClicked(self):
+
+        sd = self.dockwidget
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Værditab',1,Qt.Checked)
+    
+    def pbRiskClicked(self):
+
+        sd = self.dockwidget
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Risiko',1,Qt.Checked)
+    
+    def pbClearAllClicked(self):
+
+        sd = self.dockwidget
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Risiko',1,Qt.Unchecked)
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Værditab',1,Qt.Unchecked)
+        self.setCheckModel(sd.tvCells.model().invisibleRootItem(),'Skadesomkostninger',1,Qt.Unchecked)
+    
+    def setCheckModel(self,root,txt,col,value=Qt.Unchecked):
+        if root is not None:
+            stack = [root]
+            while stack:
+                parent = stack.pop(0)
+                for row in range(parent.rowCount()):
+                    child = parent.child(row, 0)
+                    child2 = parent.child(row, col)
+                    if child.isCheckable() and child2.text() == txt: child.setCheckState(value)
+                    if child.hasChildren(): stack.append(child)
+     
+    def pbCellExtractClicked(self):
+        
+        sd = self.dockwidget
+        
+        # Update template information
+        for item in self.iterItemsMatch(sd.tvGeneral.model().invisibleRootItem(), 'update cell layer'): 
+            parent = item.parent()
+            updTemplate = parent.child(item.row(),2).text()
+
+        # Cell table information
+        cLtl = sd.cbCellLayer.currentData()
+        cUri = cLtl.layer().dataProvider().uri()
+        cell_table = cUri.quotedTablename() 
+        geom_cell = cUri.geometryColumn()        
+
+        query = QSqlQuery()
+        ltRoot = QgsProject.instance().layerTreeRoot()
+        for item in self.iterItemsChecked(sd.tvCells.model().invisibleRootItem()):
+            # Value table information
+            parent = item.parent()
+            layerId = parent.child(item.row(),2).text()
+            
+            vLtl = ltRoot.findLayer(layerId)        
+            vUri = vLtl.layer().dataProvider().uri()
+            value_table = vUri.quotedTablename() 
+            geom_value = vUri.geometryColumn()        
+            value_value = item.text()
+            updCmd = updTemplate.format(cell_table=cell_table, geom_cell=geom_cell, value_table=value_table, geom_value=geom_value, value_value=value_value)
+            logI(updCmd)
+            query.exec(updCmd)    
+            error = query.lastError().text()
+            if error != '': messC(error)                
+
+        cLtl.layer().triggerRepaint()
+        cLtl.layer().reload()
+        self.iface.mapCanvas().refresh()
+
+        #QgsProject.instance().reloadAllLayers()             
+
     def pbParameterSaveClicked(self):
 
         deleteTemplate = 'DELETE FROM {}'
@@ -461,7 +665,14 @@ class EcoModel:
             sd.tvQueries.expandAll()
             sd.tvModels.expandAll()
             sd.tvReports.expandAll()
-        
+
+            celllayer = self.parmDict['Cell layername']['value']
+            sd.leLayerName.setText(celllayer)
+            
+            cellsize = float(self.parmDict['Cell size']['value'])
+            sd.dsbCellSize.setValue(cellsize)
+            
+            self.pbMapperExtentsClicked()
         else:
             messC(tr('Database connection and/or parametertable not set'))
             
@@ -483,11 +694,10 @@ class EcoModel:
         rGroup = createGroup(mDict['Model_layergroup'], QgsProject.instance().layerTreeRoot(), True)
         rDtnGroup = createGroup(mDict['Prefix_date'] + QDateTime.currentDateTime().toString(Qt.ISODate), rGroup, False)
 
-
         # run choosen models
         for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
-            tname, vlayer = self.runModel(item, mDict)
-            if  vlayer: addLayer2Tree(rDtnGroup, vlayer, False, 'eco_layername', tname, os.path.join(self.plugin_dir, 'styles', item.text() + '.qml'), item.text())
+            qname, vlayer = self.runModel(item, mDict)
+            if  vlayer: addLayer2Tree(rDtnGroup, vlayer, False, 'eco_resultlayer', qname, os.path.join(self.plugin_dir, 'styles', item.text() + '.qml'), item.text())
 
     def runModel (self, item, lDict):
     
@@ -552,7 +762,7 @@ class EcoModel:
         uri.setDataSource(lDict['Result_schema'], lDict['tablename_ts'], geom_col , '', pkey_col)
         vlayer=QgsVectorLayer (uri.uri(), nTxt, contype)
 
-        return lDict['tablename_ts'], vlayer
+        return lTxt, vlayer
         
 #    def createTempParmDict (self, roots):
 #
@@ -572,7 +782,7 @@ class EcoModel:
 #                        tDict[key] = value
 #
 #        return tDict
-                
+
     def iterItemsChecked(self, root, dontCheck=False):
         if root is not None:
             stack = [root]
@@ -582,6 +792,40 @@ class EcoModel:
                     child = parent.child(row, 0)
                     if child.checkState() == Qt.Checked or dontCheck : yield child
                     if child.hasChildren(): stack.append(child)
+
+    def iterItemsMatch(self, root, match=None):
+        if root is not None:
+            stack = [root]
+            while stack:
+                parent = stack.pop(0)
+                for row in range(parent.rowCount()):
+                    child = parent.child(row, 0)
+                    if match is None or match == child.text(): yield child
+                    if child.hasChildren(): stack.append(child)
+
+    def iterRowCheckable(self, root, dontCheck=False):
+        if root is not None:
+            stack = [root]
+            while stack:
+                parent = stack.pop(0)
+                for row in range(parent.rowCount()):
+                    rowval = []
+                    for column in range(parent.columnCount()): rowval.append(parent.child(row, column))
+                    if dontCheck == True or dontCheck == False and rowval[0].isCheckable(): yield rowval
+                    child0 = parent.child(row, 0)
+                    if child0.hasChildren(): stack.append(child0)
+
+                
+#    def iterItemsChecked(self, root, dontCheck=False, match=None):
+#        if root is not None:
+#            stack = [root]
+#            while stack:
+#                parent = stack.pop(0)
+#                for row in range(parent.rowCount()):
+#                    child = parent.child(row, 0)
+#                    if (child.checkState() == Qt.Checked or dontCheck): yield child
+#                    # and (match is None or match == child.text()) 
+#                    if child.hasChildren(): stack.append(child)
 
     def createParmDict(self, ptable, pkfield, pkvalue, pvfield):
 
@@ -608,6 +852,7 @@ class EcoModel:
 
     def createTreeModels (self, modG, modD, modQ, modM, modR, pDict, fieldN, fieldP, fieldC, fieldE, hl):
 
+        #QStandardItemModel()
         modG.setRowCount(0)
         modD.setRowCount(0)
         modQ.setRowCount(0)

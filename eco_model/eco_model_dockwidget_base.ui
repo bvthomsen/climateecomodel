@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="pbReportSave">
       <property name="currentIndex">
-       <number>4</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -137,6 +137,12 @@
         </item>
         <item>
          <widget class="QPushButton" name="pbDataImport">
+          <property name="font">
+           <font>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
           <property name="text">
            <string>Import layer from mapper</string>
           </property>
@@ -154,6 +160,12 @@
         </item>
         <item>
          <widget class="QPushButton" name="pbModelRun">
+          <property name="font">
+           <font>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
           <property name="text">
            <string>Run selected model(s)</string>
           </property>
@@ -169,7 +181,7 @@
         <item>
          <widget class="QGroupBox" name="groupBox_3">
           <property name="title">
-           <string>New cell layer</string>
+           <string>Create cell layer</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_8">
            <item>
@@ -224,6 +236,12 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="maximum">
+                  <double>10000.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>50.000000000000000</double>
+                 </property>
                 </widget>
                </item>
                <item row="1" column="0">
@@ -247,6 +265,12 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="maximum">
+                  <double>10000000.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>1000.000000000000000</double>
+                 </property>
                 </widget>
                </item>
                <item row="2" column="0">
@@ -269,6 +293,12 @@
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
+                 </property>
+                 <property name="maximum">
+                  <double>10000000.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>1000.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -303,12 +333,18 @@
                 </widget>
                </item>
                <item row="1" column="1">
-                <widget class="QDoubleSpinBox" name="dsbXMAX">
+                <widget class="QDoubleSpinBox" name="dsbXMax">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                    <horstretch>4</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
+                 </property>
+                 <property name="maximum">
+                  <double>10000000.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>1000.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -333,6 +369,12 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="maximum">
+                  <double>10000000.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>1000.000000000000000</double>
+                 </property>
                 </widget>
                </item>
               </layout>
@@ -340,17 +382,34 @@
             </layout>
            </item>
            <item>
-            <widget class="QPushButton" name="pbCreateCellLayer">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-               <horstretch>9</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="text">
-              <string>Create new cell layer</string>
-             </property>
-            </widget>
+            <layout class="QHBoxLayout" name="horizontalLayout_7">
+             <item>
+              <widget class="QPushButton" name="pbMapperExtents">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                 <horstretch>9</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>mapper extents</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pbCreateCellLayer">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                 <horstretch>9</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>Create new cell layer</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
          </widget>
@@ -418,13 +477,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QTreeWidget" name="twCellCandidates">
-          <column>
-           <property name="text">
-            <string notr="true">1</string>
-           </property>
-          </column>
-         </widget>
+         <widget class="QTreeView" name="tvCells"/>
         </item>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_5">
@@ -455,7 +508,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pbRisque">
+           <widget class="QPushButton" name="pbRisk">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>9</horstretch>
@@ -463,7 +516,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Risque</string>
+             <string>Risk</string>
             </property>
            </widget>
           </item>
@@ -504,6 +557,12 @@
               <horstretch>9</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
             </property>
             <property name="text">
              <string>Run cell extraction</string>

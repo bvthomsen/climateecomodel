@@ -71,6 +71,18 @@ def findLayerVariableValue(ename, evalue):
 
     return None, None
 
+def findLayerVariableList(ename):
+    """Find layer containing specific environment variable value"""
+
+    vlist = []
+
+    if ename:
+        for ltLayer in QgsProject.instance().layerTreeRoot().findLayers():
+            if QgsExpressionContextUtils.layerScope(ltLayer.layer()).variable(ename):
+                vlist.append(ltLayer.layerId())
+
+    return vlist
+
 
 def assignLayerVariable(layer, ename, evalue):
     """Assign name/value pair to specific layer"""
@@ -335,17 +347,19 @@ def handleRequest_old(url, isPost=False, headers=None, package=None, loglayer=No
     return scode, dictR
 
 
-def mapperExtent(epsg):
+def mapperExtent(epsg=None):
     """ Find extend of Mapper in predefined crs"""
 
     extent = iface.mapCanvas().extent()
 
-    crsSrc = iface.mapCanvas().mapSettings().destinationCrs()
-    crsDest = QgsCoordinateReferenceSystem("EPSG:{}".format(epsg))
-
-    if crsSrc != crsDest:
-        xform = QgsCoordinateTransform(crsSrc, crsDest)
-        extent = xform.transform(extent)
+    if epsg:
+    
+        crsSrc = iface.mapCanvas().mapSettings().destinationCrs()
+        crsDest = QgsCoordinateReferenceSystem("EPSG:{}".format(epsg))
+    
+        if crsSrc != crsDest:
+            xform = QgsCoordinateTransform(crsSrc, crsDest)
+            extent = xform.transform(extent)
 
     xmi = extent.xMinimum()
     xma = extent.xMaximum()
