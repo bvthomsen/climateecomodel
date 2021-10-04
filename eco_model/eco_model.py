@@ -312,7 +312,6 @@ class EcoModel:
                 self.pbDatabaseClicked()
                 self.pbParameterResetClicked()
                 self.pbUpdCellLayerClicked()
-                self.pbUpdateLayerTreeClicked()
                 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
@@ -680,6 +679,7 @@ class EcoModel:
             sd.dsbCellSize.setValue(cellsize)
             
             self.pbMapperExtentsClicked()
+            self.pbUpdateLayerTreeClicked()
         else:
             messC(tr('Database connection and/or parametertable not set'))
             
