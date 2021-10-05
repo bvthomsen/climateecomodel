@@ -1,6 +1,6 @@
 {
     "Data": {
-        "Database": "postgres: ecomodel on localhost",
+        "Database": "postgres: skadesmodel on localhost",
         "Parametertable": "data.parameters",
 		"Parameterkeyfield" : "name",
 		"Parametervaluefield" : "value",
