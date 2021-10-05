@@ -563,6 +563,7 @@ class EcoModel:
         for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
             for row in self.iterRowItems(tv.model().invisibleRootItem()): 
                 #logI(str(row))
+                if row[0] == 'Group name template': row[2] = sd.leGroupName.text()
                 for i in range(len(row)): insertDataQuery.addBindValue(row[i])
                 insertDataQuery.exec()
                 logI(insertDataQuery.lastError().text())                
@@ -651,6 +652,7 @@ class EcoModel:
             self.contype = setting[0]
 
             self.parmDict, hl = self.createParmDict(spd["Parametertable"], spd["Parameterkeyfield"], spd["Parameterkeyvalue"], spd["Parametervaluefield"])        
+            sd.leGroupName.setText(self.parmDict['Group name template']['value'])
             (modG, modD, modQ, modM, modR) = self.createTreeModels (QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), QStandardItemModel(), self.parmDict, 'name', 'parent', 'checkable', 'explanation', hl)
         
             sd.tvGeneral.setModel(modG)
@@ -699,7 +701,7 @@ class EcoModel:
 
         # Create results layergroup
         rGroup = createGroup(mDict['Model_layergroup'], QgsProject.instance().layerTreeRoot(), True)
-        rDtnGroup = createGroup(mDict['Prefix_date'] + QDateTime.currentDateTime().toString(Qt.ISODate), rGroup, False)
+        rDtnGroup = createGroup(sd.leGroupName.text().format(time_stamp=QDateTime.currentDateTime().toString(Qt.ISODate)), rGroup, False)
 
         # run choosen models
         for item in self.iterItemsChecked(sd.tvModels.model().invisibleRootItem().child(0,0)):
