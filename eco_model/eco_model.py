@@ -667,7 +667,8 @@ class EcoModel:
                 tv.header().setStretchLastSection(True);
                 tv.header().setSectionResizeMode(QHeaderView.ResizeToContents)
                 tv.setAlternatingRowColors(True)        
-
+                tv.setUniformRowHeights(True)
+                
             sd.tvGeneral.expandAll()
             sd.tvData.expandAll()
             sd.tvQueries.expandAll()
@@ -941,8 +942,8 @@ class EcoModel:
             val.append(str(it.data()))
 
         rect = tree.visualRect(parent.child(row, 0))
-        pos = tree.viewport().mapToGlobal(rect.bottomLeft())
-        width = int(sd.width()*0.7)
+        pos = tree.viewport().mapToGlobal(rect.topLeft())
+        width = int(sd.width()*0.8)
         
         result, newval =  self.treeViewEditItem(pos, width, val)
         
@@ -1040,12 +1041,12 @@ class EcoModel:
             buttonBox.accepted.connect(dlg.accept)
             layout.addWidget(buttonBox)
 
-            layout.setSizeConstraint(QLayout.SetFixedSize)
+            #layout.setSizeConstraint(QLayout.SetFixedSize)
             dlg.setLayout(layout)
             dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
             input.setMinimumWidth(width)
             dlg.move(pos)
-
+            dlg.setSizeGripEnabled(True)
             res = dlg.exec()
 
             if res:
