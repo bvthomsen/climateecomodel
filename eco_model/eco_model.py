@@ -95,7 +95,8 @@ from .helper import (tr,
                      isInt,
                      isFloat,
                      mapperExtent,
-                    findLayerVariableList)
+                    findLayerVariableList,
+                    executeSQL)
 
 from .eco_model_dockwidget import EcoModelDockWidget
 
@@ -367,42 +368,50 @@ class EcoModel:
             ltl = root.findLayer(v)
             sd.cbCellLayer.addItem(ltl.name(),ltl)
         
-
+       
+        
     def pbCreateCellLayerClicked(self):
 
         sd = self.dockwidget
 
-        createCellTemplate = self.parmDict['Create cell layer template']['value']
+        #createCellTemplate = self.parmDict['Create cell layer template']['value']
+        createCellTemplate = self.treeViewItemText(sd.tvGeneral,'Create cell layer template',2)
         clayer = sd.leLayerName.text()
 
+        rschema = ''
         if clayer.find('.') < 0: # tablename without schema definition 
-            clayer = self.parmDict['Result_schema']['value'] + '.' + clayer
+            rschema = self.treeViewItemText(sd.tvGeneral,'Result_schema',2)
 
-        sqlCmd = createCellTemplate.format(
-            celltable=clayer,
-            epsg=self.iface.mapCanvas().mapSettings().destinationCrs().authid().replace('EPSG:',''),
-            xmin=sd.dsbXMin.value(),
-            xmax=sd.dsbXMax.value(),
-            ymin=sd.dsbYMin.value(),
-            ymax=sd.dsbYMax.value(),
-            cellsize=sd.dsbCellSize.value()
-        )
-
-        query = QSqlQuery()
-        query.exec(sqlCmd)    
-
-        error = query.lastError().text()
-        if error != '':
-            messC(error)                
-
-        else: 
-            uri = self.conuri
-            sandt = clayer.split('.',1)
-            uri.setDataSource (sandt[0], sandt[1], 'geom')
-            layer = QgsVectorLayer(uri.uri(), clayer, self.contype)
-            ltl = addLayer2Tree(QgsProject.instance().layerTreeRoot(), layer, True, 'eco_celllayer', clayer, os.path.join(self.plugin_dir, 'styles', 'cells.qml'), clayer)
-            sd.cbCellLayer.addItem(layer.name(), ltl)
-            sd.cbCellLayer.setCurrentIndex(sd.cbCellLayer.count()-1)
+        if clayer and createCellTemplate and rschema:
+            clayer = clayer if rchema == '' else rschema + '.' + clayer
+            sqlCmd = createCellTemplate.format(
+                celltable=clayer,
+                epsg=self.iface.mapCanvas().mapSettings().destinationCrs().authid().replace('EPSG:',''),
+                xmin=sd.dsbXMin.value(),
+                xmax=sd.dsbXMax.value(),
+                ymin=sd.dsbYMin.value(),
+                ymax=sd.dsbYMax.value(),
+                cellsize=sd.dsbCellSize.value()
+            )
+    
+    #        query = QSqlQuery()
+    #        query.exec(sqlCmd)    
+    #
+    #        error = query.lastError().text()
+    #        if error != '':
+    #            messC(error)                
+    #
+    #
+    #        else: 
+            query = executeSQL(sqlCmd)
+            if query:
+                uri = self.conuri
+                sandt = clayer.split('.',1)
+                uri.setDataSource (sandt[0], sandt[1], 'geom')
+                layer = QgsVectorLayer(uri.uri(), clayer, self.contype)
+                ltl = addLayer2Tree(QgsProject.instance().layerTreeRoot(), layer, True, 'eco_celllayer', clayer, os.path.join(self.plugin_dir, 'styles', 'cells.qml'), clayer)
+                sd.cbCellLayer.addItem(layer.name(), ltl)
+                sd.cbCellLayer.setCurrentIndex(sd.cbCellLayer.count()-1)
             
     def pbClearValuesClicked(self):
 
@@ -411,11 +420,13 @@ class EcoModel:
         clearTemplate = self.parmDict['Clear cell layer template']['value']
         uri = ltl.layer().dataProvider().uri()
         sqlCmd = clearTemplate.format(schema = uri.schema(), table = uri.table())
-        query = QSqlQuery()
-        query.exec(sqlCmd)    
-        ltl.layer().triggerRepaint()
-        ltl.layer().reload()
-        self.iface.mapCanvas().refresh()
+#        query = QSqlQuery()
+#        query.exec(sqlCmd)    
+        query = executeSQL(sqlCmd)
+        if query:
+            ltl.layer().triggerRepaint()
+            ltl.layer().reload()
+            self.iface.mapCanvas().refresh()
 
     def pbUpdateLayerTreeClicked(self):
 
@@ -523,11 +534,12 @@ class EcoModel:
             geom_value = vUri.geometryColumn()        
             value_value = item.text()
             updCmd = updTemplate.format(cell_table=cell_table, geom_cell=geom_cell, value_table=value_table, geom_value=geom_value, value_value=value_value)
-            logI(updCmd)
-            query.exec(updCmd)    
-            error = query.lastError().text()
-            if error != '': messC(error)                
-
+#            logI(updCmd)
+#            query.exec(updCmd)    
+#            error = query.lastError().text()
+#            if error != '': messC(error)                
+            query = executeSQL(updCmd)
+ 
         cLtl.layer().triggerRepaint()
         cLtl.layer().reload()
         self.iface.mapCanvas().refresh()
@@ -547,26 +559,21 @@ class EcoModel:
         columnNames =  [sd.tvGeneral.model().headerData(i,Qt.Horizontal) for i in range(sd.tvGeneral.model().columnCount())]
         colnames = '", "'.join(columnNames)
         colnames= '"' + colnames + '"'
-        logI(colnames)
 
         placeList =  [' ?' for i in range(sd.tvGeneral.model().columnCount())]
         placeholders = ','.join(placeList)
-        logI(placeholders)
+
+        query = executeSQL(deleteTemplate.format(parametertable))
 
         insertCmd = insertTemplate.format(parametertable, colnames, placeholders)
-        logI(insertCmd)
-
         insertDataQuery = QSqlQuery()
-        insertDataQuery.exec(deleteTemplate.format(parametertable))        
-
         insertDataQuery.prepare(insertCmd)
         for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
             for row in self.iterRowItems(tv.model().invisibleRootItem()): 
-                #logI(str(row))
                 if row[0] == 'Group name template': row[2] = sd.leGroupName.text()
                 for i in range(len(row)): insertDataQuery.addBindValue(row[i])
                 insertDataQuery.exec()
-                logI(insertDataQuery.lastError().text())                
+                if insertDataQuery.lastError().text() != '': logC(insertDataQuery.lastError().text())                
               
         
     def iterRowItems(self, root):
@@ -624,14 +631,19 @@ class EcoModel:
 
         sd = self.dockwidget
         uri = self.conuri
- 
+
+        schema = ''
+        table = ''
+        geom = ''        
         if sd.leParameterTable.text().find('.') >= 0:
             sandt = sd.leParameterTable.text().split('.',1)
-            uri.setSchema(sandt[0])
-            uri.setTable(sandt[1])
+            schema = sandt[0]
+            table = sandt[1]
         else:
-            uri.setTable(sd.leParameterTable.text())
-
+            table = sd.leParameterTable.text()
+        uri.setDataSource(schema, table, '','','name')
+        uri.setUseEstimatedMetadata(True)
+        #logI(uri.uri())
         self.parameterLayer = QgsVectorLayer(uri.uri(), "parameters", self.contype)
         if self.parameterLayer: addLayer2Tree(QgsProject.instance().layerTreeRoot(), self.parameterLayer, False, 'eco_layername', sd.leParameterTable.text(), os.path.join(self.plugin_dir, 'styles', 'parameters.qml'),'Parameters')
     
@@ -723,20 +735,21 @@ class EcoModel:
         parent = item.parent()
         lTxt = parent.child(item.row(),7).text() # From column "default"
         nTxt = parent.child(item.row(),0).text() # From column "name"
-        logI (lTxt)
-        logI ( lDict[lTxt])
+        #logI (lTxt)
+        #logI ( lDict[lTxt])
         # Create new tablename for result datasaet using model name and timestamp
         lDict['tablename_ts'] = createDateTimeName(item.text())
-        logI (lDict['tablename_ts'])
+        #logI (lDict['tablename_ts'])
         # Create artificial query entry in lDict using actual query entry        
         lDict['sqlquery'] = lDict[lTxt].format(**lDict)
 
         # Create create table... command
         qct = lDict['Create_result_table'].format(**lDict)
-        logI(qct)    
+        #logI(qct)    
 
         # Create table by executing command
-        query.exec(qct) 
+        query = executeSQL(qct)
+#        query.exec(qct) 
 
         if 'f_geom_'+ lTxt in lDict:
 
@@ -746,9 +759,10 @@ class EcoModel:
     
             # Create spatial index... command
             qct = lDict['Create_result_index'].format(**lDict)
-            logI(qct)    
+            #logI(qct)    
             # Create spatial index by executing command
-            query.exec(qct) # Create table with create spatial index and set primary key
+#            query.exec(qct) # Create table with create spatial index and set primary key
+            query = executeSQL(qct) 
         else:
             geom_col = ''
         
@@ -761,10 +775,11 @@ class EcoModel:
     
             # Create primary key... command
             qct = lDict['Create_result_pkey'].format(**lDict)
-            logI(qct)    
+            #logI(qct)    
     
             # Create primary key by executing command
-            query.exec(qct) 
+#            query.exec(qct) 
+            query = executeSQL(qct) 
         else:
             pkey_col = ''
 
@@ -816,6 +831,17 @@ class EcoModel:
                     if match is None or match == child.text(): yield child
                     if child.hasChildren(): stack.append(child)
 
+    def treeViewItemText(self, tv, match, column):
+         
+        root = tv.model().invisibleRootItem()
+        for item in self.iterItemsMatch(root, match):
+            parent = item.parent()
+            return parent.child(item.row(),column).text()
+        
+        messC(tr('Can''t find item: "{}" in tree: "{}"').format(match,tv.objectName()),'treeViewItemText')
+        return None
+        
+        
     def iterRowCheckable(self, root, dontCheck=False):
         if root is not None:
             stack = [root]
@@ -847,13 +873,15 @@ class EcoModel:
 
         txt = 'SELECT {0} FROM {1} WHERE {2}=\'{3}\''.format( pvfield, ptable, pkfield, pkvalue)
 
-        query.exec(txt)
+#        query.exec(txt)
+        query = executeSQL(txt) 
         while query.next():
             txt = query.value(0)
 
-        txt = txt.format(parametertable=ptable)
-        query.exec(txt)
 
+        txt = txt.format(parametertable=ptable)
+        #query.exec(txt)
+        query = executeSQL(txt) 
         pdict = {}    
         while query.next():
             ldict = {}
@@ -933,10 +961,13 @@ class EcoModel:
         self.tvAllDoubleClicked(self.dockwidget.tvReports, index)
 
     def tvAllDoubleClicked(self, tree, index):
+    
         sd = self.dockwidget
+        spd = self.parm["Data"]
         parent = index.parent()
         row = index.row()
         val = []
+
         for col in range(PARM_NO_COLUMNS - 1):
             it = parent.child(row, col)
             val.append(str(it.data()))
@@ -950,8 +981,6 @@ class EcoModel:
         if result and newval:
             it = parent.child(row, 2)
             it.model().setData(it, newval)
-            #self.model().setData(index, QVariant(""), Qt.EditRole)
-
 
 
 
@@ -967,7 +996,7 @@ class EcoModel:
         if func in ['T','P','R','I','O','M','X','D','E','B']:
 
             layout = QVBoxLayout()
-            logI(str(val))
+            #logI(str(val))
 
             if func=='T': # Single line
 

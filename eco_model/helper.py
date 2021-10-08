@@ -3,6 +3,8 @@ from json import load, dump, dumps, loads
 import requests
 import os.path
 
+from PyQt5.QtSql import QSqlQuery
+
 from PyQt5.QtCore import (QCoreApplication,
                           Qt,
                           QDateTime,
@@ -147,6 +149,36 @@ def messC(message, prefix=None, duration=30):
     prefix = prefix or trClassName
     iface.messageBar().pushMessage(prefix, message, Qgis.Critical, duration)
     iface.mainWindow().repaint()
+
+
+def executeSQL(cmd, tab=None):
+
+    global trClassName
+    tab = tab or trClassName
+
+    query = QSqlQuery()
+    query.exec(cmd)    
+    error = query.lastError().text()
+    if error != '':
+        errmsg = tr('Error on SQL command. Se log, tab: {} for command and error message')
+        errmsg = errmsg.format(tab)
+        messC(errmsg) 
+        logmsg = tr("""Error on executing sql command
+======
+The command was;
+--
+{}
+--
+The error was:
+--
+{}
+======
+""")
+        errmsg = logmsg.format(cmd,error)
+        logC(errmsg,tab)            
+        return None
+    
+    return query
 
 
 def xstr(s, r=''):
