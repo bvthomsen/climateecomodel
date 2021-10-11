@@ -26,6 +26,7 @@ import sys
 from qgis.PyQt.QtCore import (QSettings,
                               QTranslator,
                               QCoreApplication,
+                              qVersion,
                               Qt,
                               QVariant,
                               QUrl,
@@ -70,7 +71,7 @@ from qgis.gui import QgsFileWidget, QgsCheckableComboBox
 
 from .resources import *
 
-from .helper import (tr,
+from .helper import (#tr,
                      trInit,
                      logI,
                      logW,
@@ -127,18 +128,22 @@ class EcoModel:
             self.plugin_dir,
             'i18n',
             'EcoModel_{}.qm'.format(locale))
+        messI('leder efter: '+ locale_path)
 
         if os.path.exists(locale_path):
-            translator = QTranslator()
-            translator.load(locale_path)
-            QCoreApplication.installTranslator(translator)
+            self.translator = QTranslator()
+            self.translator.load(locale_path)
+            messI('fundet: '+locale_path)
+            
+            if qVersion() > '4.3.3':
+                QCoreApplication.installTranslator(self.translator)
 
         trInit('EcoModel')
 
 
         # Declare instance attributes
         self.actions = []
-        self.menu = tr(u'&Climate modeliing')
+        self.menu = self.tr(u'&Climate modelling')
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'EcoModel')
         self.toolbar.setObjectName(u'EcoModel')
@@ -148,7 +153,22 @@ class EcoModel:
         self.pluginIsActive = False
         self.dockwidget = None
 
+    # noinspection PyMethodMayBeStatic
+    def tr(self, message):
+        """Get the translation for a string using Qt translation API.
 
+        We implement this ourselves since we do not inherit QObject.
+
+        :param message: String for translation.
+        :type message: str, QString
+
+        :returns: Translated version of message.
+        :rtype: QString
+        """
+        # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
+        return QCoreApplication.translate('EcoModel', message)
+    
+    
     def add_action(
         self,
         icon_path,
@@ -229,7 +249,7 @@ class EcoModel:
         icon_path = ':/plugins/eco_model/icon.png'
         self.add_action(
             icon_path,
-            text=tr(u'Economic modelling'),
+            text=self.tr(u'Economic modelling'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -259,7 +279,7 @@ class EcoModel:
 
         for action in self.actions:
             self.iface.removePluginMenu(
-                tr(u'&Climate modeliing'),
+                self.tr(u'&Climate modelling'),
                 action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
@@ -277,11 +297,12 @@ class EcoModel:
 
                 self.dockwidget = EcoModelDockWidget()
 
-                self.model = QStandardItemModel()
-                self.model.setHorizontalHeaderLabels(['Name', 'Height', 'Weight'])
+                #self.model = QStandardItemModel()
+                #self.model.setHorizontalHeaderLabels(['Name', 'Height', 'Weight'])
                 self.parm = read_config(os.path.join(self.plugin_dir, 'configuration.json'))
 
                 sd = self.dockwidget
+                spd = self.parm["Data"]
 
                 sd.pbDatabase.clicked.connect(self.pbDatabaseClicked)
                 sd.pbParameterSave.clicked.connect(self.pbParameterSaveClicked)
@@ -298,6 +319,7 @@ class EcoModel:
                 sd.pbRisk.clicked.connect(self.pbRiskClicked)
                 sd.pbClearAll.clicked.connect(self.pbClearAllClicked)
                 sd.pbCellExtract.clicked.connect(self.pbCellExtractClicked)
+                sd.pbAdministration.clicked.connect(self.pbAdministrationClicked)
 
                 for tv in [sd.tvGeneral, sd.tvQueries, sd.tvData, sd.tvModels, sd.tvReports]:
                     tv.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -313,6 +335,7 @@ class EcoModel:
                 self.pbDatabaseClicked()
                 self.pbParameterResetClicked()
                 self.pbUpdCellLayerClicked()
+                self.pbAdministrationClicked()     
                 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
@@ -321,6 +344,16 @@ class EcoModel:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+
+    def pbAdministrationClicked(self):
+    
+        sd = self.dockwidget
+        
+        vis = (sd.twEcoModel.isTabVisible(0) == False)
+        
+        sd.twEcoModel.setTabVisible(0,vis)
+        sd.twEcoModel.setTabVisible(1,vis)
+        sd.twEcoModel.setTabVisible(2,vis)
 
     def pbDatabaseClicked(self):
 
@@ -338,7 +371,7 @@ class EcoModel:
                 for c,i in conn.items(): sd.cbDatabase.addItem('{}: {}'.format(k, c), [k, c])
 
             except Exception as e:
-                logC('Error using connection type: {}'.format(k))
+                logC(self.tr('Error using connection type: {}').format(k))
                 
         sd.cbDatabase.setCurrentIndex(sd.cbDatabase.findText(spd['Database']))
         sd.leParameterTable.setText(spd['Parametertable'])        
@@ -383,7 +416,7 @@ class EcoModel:
             rschema = self.treeViewItemText(sd.tvGeneral,'Result_schema',2)
 
         if clayer and createCellTemplate and rschema:
-            clayer = clayer if rchema == '' else rschema + '.' + clayer
+            clayer = clayer if rschema == '' else rschema + '.' + clayer
             sqlCmd = createCellTemplate.format(
                 celltable=clayer,
                 epsg=self.iface.mapCanvas().mapSettings().destinationCrs().authid().replace('EPSG:',''),
@@ -696,7 +729,7 @@ class EcoModel:
             self.pbMapperExtentsClicked()
             self.pbUpdateLayerTreeClicked()
         else:
-            messC(tr('Database connection and/or parametertable not set'))
+            messC(self.tr('Database connection and/or parametertable not set'))
             
     def pbModelRunClicked(self):
 
@@ -838,7 +871,7 @@ class EcoModel:
             parent = item.parent()
             return parent.child(item.row(),column).text()
         
-        messC(tr('Can''t find item: "{}" in tree: "{}"').format(match,tv.objectName()),'treeViewItemText')
+        messC(self.tr('Can''t find item: "{}" in tree: "{}"').format(match,tv.objectName()),'treeViewItemText')
         return None
         
         

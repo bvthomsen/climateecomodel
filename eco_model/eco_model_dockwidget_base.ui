@@ -16,9 +16,9 @@
   <widget class="QWidget" name="dockWidgetContents">
    <layout class="QVBoxLayout" name="verticalLayout_3">
     <item>
-     <widget class="QTabWidget" name="pbReportSave">
+     <widget class="QTabWidget" name="twEcoModel">
       <property name="currentIndex">
-       <number>3</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -135,19 +135,6 @@
         <item>
          <widget class="QTreeView" name="tvData"/>
         </item>
-        <item>
-         <widget class="QPushButton" name="pbDataImport">
-          <property name="font">
-           <font>
-            <weight>75</weight>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="text">
-           <string>Import layer from mapper</string>
-          </property>
-         </widget>
-        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="tab_2">
@@ -163,7 +150,7 @@
           <item>
            <widget class="QLabel" name="label">
             <property name="text">
-             <string>Group name </string>
+             <string>Group name</string>
             </property>
            </widget>
           </item>
@@ -629,6 +616,13 @@
        <widget class="QPushButton" name="pbParameterReset">
         <property name="text">
          <string>Reset parameters</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pbAdministration">
+        <property name="text">
+         <string>Administration</string>
         </property>
        </widget>
       </item>

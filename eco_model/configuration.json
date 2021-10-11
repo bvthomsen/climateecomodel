@@ -5,6 +5,7 @@
 		"Parameterkeyfield" : "name",
 		"Parametervaluefield" : "value",
 		"Parameterkeyvalue" : "Fetch parameter table",
-        "Item delimiter" : "¤"
+        "Item delimiter" : "¤",
+		"User role": "Usernot"
     }
 }
